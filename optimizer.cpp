@@ -4,11 +4,22 @@
  */
 
 #include <mlpack/core.hpp>
+#include <mlpack/core/util/sfinae_utility.hpp>
 
 #include <mlpack/core/optimizers/adam/adam.hpp>
 #include <mlpack/core/optimizers/rmsprop/rmsprop.hpp>
 #include <mlpack/core/optimizers/ada_delta/ada_delta.hpp>
 #include <mlpack/core/optimizers/ada_grad/ada_grad.hpp>
+#include <mlpack/core/optimizers/cne/cne.hpp>
+#include <mlpack/core/optimizers/smorms3/smorms3.hpp>
+#include <mlpack/core/optimizers/iqn/iqn.hpp>
+#include <mlpack/core/optimizers/cmaes/cmaes.hpp>
+#include <mlpack/core/optimizers/sgd/sgd.hpp>
+#include <mlpack/core/optimizers/lbfgs/lbfgs.hpp>
+#include <mlpack/core/optimizers/gradient_descent/gradient_descent.hpp>
+#include <mlpack/core/optimizers/sa/sa.hpp>
+#include <mlpack/core/optimizers/sa/exponential_schedule.hpp>
+#include <mlpack/core/optimizers/spalera_sgd/spalera_sgd.hpp>
 
 #include <mlpack/core/optimizers/problems/booth_function.hpp>
 #include <mlpack/core/optimizers/problems/bukin_function.hpp>
@@ -26,6 +37,9 @@
 using namespace arma;
 using namespace mlpack::optimization;
 using namespace mlpack::optimization::test;
+
+
+HAS_MEM_FUNC(BatchSize, HasBatchSize);
 
 template<class FunctionType>
 class WrapperFunction
@@ -95,6 +109,21 @@ class WrapperFunction
   std::vector<double> evaluateHistory;
 };
 
+template<typename T, typename F>
+inline typename std::enable_if<
+    HasBatchSize<T, size_t&(T::*)()>::value, void>::type
+SetBatchSize(T& optimizer, F& function)
+{
+  optimizer.BatchSize() = function.NumFunctions();
+}
+
+template<typename T, typename F>
+inline typename std::enable_if<
+    !HasBatchSize<T, size_t&(T::*)()>::value, void>::type
+SetBatchSize(T& optimizer, F& function)
+{
+  /* Nothing to do here */
+}
 
 template<typename OptimizerType, typename FunctionType>
 void OptimizeOptimizer(OptimizerType& optimizer,
@@ -102,7 +131,7 @@ void OptimizeOptimizer(OptimizerType& optimizer,
 {
   WrapperFunction<FunctionType> wf(f);
 
-  optimizer.BatchSize() = f.NumFunctions();
+  SetBatchSize(optimizer, f);
   wf.Coordinates() = wf.GetInitialPoint();
 
   optimizer.Optimize(wf, wf.Coordinates());
@@ -208,10 +237,30 @@ int main(void)
   std::cout << "Content-type: text/html";
   std::cout << std::endl << std::endl;
 
-  Adam adamOpt(stepSize, 1, parameterA, parameterB, 1e-8, iterations, 1e-9, false);
+  Adam adamOpt(stepSize, 1, parameterA, parameterB, 1e-8, iterations,
+      1e-9, false);
   RMSProp rmsPropOpt(stepSize, 1, parameterA, 1e-8, iterations, 1e-9, false);
   AdaDelta adaDeltaOpt(stepSize, 1, parameterA, 1e-8, iterations, 1e-9, false);
   AdaGrad adaGradOpt(stepSize, 1, 1e-8, iterations, 1e-9, false);
+  CNE cneOpt(parameterA, iterations, stepSize, parameterB, parameterC, 0.1);
+  SMORMS3 smormsOpt(stepSize, 1, 1e-16, iterations, 1e-9, false);
+  IQN iqnOpt(stepSize, 1, iterations, 1e-9);
+  CMAES<> cmaesOpt(0, parameterA, parameterB, 1, iterations, 1e-9);
+  AdaMax adaMaxOpt(stepSize, 1, parameterA, parameterB, 1e-8, iterations,
+      1e-9, false);
+  AMSGrad amsGradOpt(stepSize, 1, parameterA, parameterB, 1e-8, iterations,
+      1e-9, false);
+  Nadam nadamOpt(stepSize, 1, parameterA, parameterB, 1e-8, iterations,
+      1e-9, false);
+  StandardSGD sgdOpt(stepSize, 1, iterations, 1e-9, false);
+  MomentumSGD sgdMomentumOpt(stepSize, 1, iterations, 1e-9, false,
+      MomentumUpdate(parameterA));
+  L_BFGS lbfgsOpt(stepSize, iterations, parameterA, 1e-4, parameterB, 1e-9);
+  GradientDescent gdOpt(stepSize, iterations, 1e-9);
+  ExponentialSchedule schedule;
+  SA<ExponentialSchedule> saOpt(schedule, iterations, stepSize, parameterA,
+      parameterB, 1e-9, 3, parameterC, parameterD, 0.3);
+  SPALeRASGD<> spalerasgdOpt(stepSize, 1, iterations, 1e-4);
 
   if (optimizer == "adam")
   {
@@ -229,7 +278,58 @@ int main(void)
   {
     OptimizeFunction(adaGradOpt, functionID);
   }
-
+  else if (optimizer == "cne")
+  {
+    OptimizeFunction(cneOpt, functionID);
+  }
+  else if (optimizer == "smorms")
+  {
+    OptimizeFunction(smormsOpt, functionID);
+  }
+  else if (optimizer == "iqn")
+  {
+    OptimizeFunction(iqnOpt, functionID);
+  }
+  else if (optimizer == "cmaes")
+  {
+    OptimizeFunction(cmaesOpt, functionID);
+  }
+  else if (optimizer == "adamax")
+  {
+    OptimizeFunction(adaMaxOpt, functionID);
+  }
+  else if (optimizer == "amsgrad")
+  {
+    OptimizeFunction(amsGradOpt, functionID);
+  }
+  else if (optimizer == "nadam")
+  {
+    OptimizeFunction(nadamOpt, functionID);
+  }
+  else if (optimizer == "sgd")
+  {
+    OptimizeFunction(sgdOpt, functionID);
+  }
+  else if (optimizer == "sgdmomentum")
+  {
+    OptimizeFunction(sgdMomentumOpt, functionID);
+  }
+  else if (optimizer == "lbfgs")
+  {
+    OptimizeFunction(lbfgsOpt, functionID);
+  }
+  else if (optimizer == "gradientdescent")
+  {
+    OptimizeFunction(gdOpt, functionID);
+  }
+  else if (optimizer == "simulatedannealing")
+  {
+    OptimizeFunction(saOpt, functionID);
+  }
+  else if (optimizer == "spalerasgd")
+  {
+    OptimizeFunction(spalerasgdOpt, functionID);
+  }
 
   return 0;
 }
