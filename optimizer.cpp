@@ -231,7 +231,7 @@ int main(void)
     return 0;
 
   // Iterations sanity checks.
-  if (iterations <= 0 || iterations >= 300000)
+  if (iterations <= 0 || iterations > 10000)
     return 0;
 
   std::cout << "Content-type: text/html";
