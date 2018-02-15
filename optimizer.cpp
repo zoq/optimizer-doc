@@ -20,6 +20,9 @@
 #include <mlpack/core/optimizers/sa/sa.hpp>
 #include <mlpack/core/optimizers/sa/exponential_schedule.hpp>
 #include <mlpack/core/optimizers/spalera_sgd/spalera_sgd.hpp>
+#include <mlpack/core/optimizers/katyusha/katyusha.hpp>
+#include <mlpack/core/optimizers/svrg/svrg.hpp>
+#include <mlpack/core/optimizers/sarah/sarah.hpp>
 
 #include <mlpack/core/optimizers/problems/booth_function.hpp>
 #include <mlpack/core/optimizers/problems/bukin_function.hpp>
@@ -202,7 +205,7 @@ int main(void)
 
   // Some server don't provide QUERY_STRING if it's empty so avoid strdup()'ing
   // a NULL pointer here.
-  char* cgiInput = strdup(qs ? qs : "");
+  char* cgiInput = strndup(qs ? qs : "", 600);
 
   std::string data(cgiInput);
 
@@ -226,15 +229,15 @@ int main(void)
      >> parameter >> parameterC
      >> parameter >> parameterD;
 
+  if (iterations <= 0 || iterations > 20000)
+    return 0;
+
   // Data not well-formatted.
   if (ss.fail())
     return 0;
 
-  // Iterations sanity checks.
-  if (iterations <= 0 || iterations > 10000)
-    return 0;
-
-  std::cout << "Content-type: text/html";
+  std::cout << "Content-type: text/html" << std::endl;
+  std::cout << "Cache-Control: max-age=3600" << std::endl;
   std::cout << std::endl << std::endl;
 
   Adam adamOpt(stepSize, 1, parameterA, parameterB, 1e-8, iterations,
@@ -261,6 +264,15 @@ int main(void)
   SA<ExponentialSchedule> saOpt(schedule, iterations, stepSize, parameterA,
       parameterB, 1e-9, 3, parameterC, parameterD, 0.3);
   SPALeRASGD<> spalerasgdOpt(stepSize, 1, iterations, 1e-4);
+  Katyusha katyushaOpt(stepSize, parameterA, 1, iterations,
+      parameterB, 1e-9, false);
+  KatyushaProximal katyushaProximalOpt(stepSize, parameterA, 1, iterations,
+      parameterB, 1e-9, false);
+  SVRG svrgOpt(stepSize, 1, iterations, parameterB, 1e-9, false);
+  SVRG_BB svrgBBOpt(stepSize, 1, iterations, parameterB, 1e-9, false,
+      SVRGUpdate(), BarzilaiBorweinDecay(parameterC));
+  SARAH sarahOpt(stepSize, 1, iterations, 0, 1e-9, false);
+  SARAH_Plus sarahPlusOpt(stepSize, 1, iterations, 0, 1e-9, false);
 
   if (optimizer == "adam")
   {
@@ -329,6 +341,30 @@ int main(void)
   else if (optimizer == "spalerasgd")
   {
     OptimizeFunction(spalerasgdOpt, functionID);
+  }
+  else if (optimizer == "katyusha")
+  {
+    OptimizeFunction(katyushaOpt, functionID);
+  }
+  else if (optimizer == "katyushaproximal")
+  {
+    OptimizeFunction(katyushaProximalOpt, functionID);
+  }
+  else if (optimizer == "svrg")
+  {
+    OptimizeFunction(svrgOpt, functionID);
+  }
+  else if (optimizer == "svrgbb")
+  {
+    OptimizeFunction(svrgBBOpt, functionID);
+  }
+  else if (optimizer == "sarah")
+  {
+    OptimizeFunction(sarahOpt, functionID);
+  }
+  else if (optimizer == "sarahplus")
+  {
+    OptimizeFunction(sarahPlusOpt, functionID);
   }
 
   return 0;
